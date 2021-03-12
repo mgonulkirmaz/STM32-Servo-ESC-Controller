@@ -1,0 +1,75 @@
+EESchema Schematic File Version 4
+EELAYER 30 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 1 1
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L Device:R_POT RV?
+U 1 1 6043F1A1
+P 1000 2700
+F 0 "RV?" H 931 2746 50  0000 R CNN
+F 1 "R_POT" H 931 2655 50  0000 R CNN
+F 2 "" H 1000 2700 50  0001 C CNN
+F 3 "~" H 1000 2700 50  0001 C CNN
+	1    1000 2700
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R?
+U 1 1 60443A2F
+P 1000 3300
+F 0 "R?" H 1070 3346 50  0000 L CNN
+F 1 "R" H 1070 3255 50  0000 L CNN
+F 2 "" V 930 3300 50  0001 C CNN
+F 3 "~" H 1000 3300 50  0001 C CNN
+	1    1000 3300
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	1000 2850 1000 3150
+$Comp
+L power:GND #PWR?
+U 1 1 60447B49
+P 1000 3550
+F 0 "#PWR?" H 1000 3300 50  0001 C CNN
+F 1 "GND" H 1005 3377 50  0000 C CNN
+F 2 "" H 1000 3550 50  0001 C CNN
+F 3 "" H 1000 3550 50  0001 C CNN
+	1    1000 3550
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	1000 3450 1000 3550
+$Comp
+L power:+3.3V #PWR?
+U 1 1 60448572
+P 1000 2450
+F 0 "#PWR?" H 1000 2300 50  0001 C CNN
+F 1 "+3.3V" H 1015 2623 50  0000 C CNN
+F 2 "" H 1000 2450 50  0001 C CNN
+F 3 "" H 1000 2450 50  0001 C CNN
+	1    1000 2450
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	1000 2450 1000 2500
+Wire Wire Line
+	1150 2700 1200 2700
+Wire Wire Line
+	1200 2700 1200 2500
+Wire Wire Line
+	1200 2500 1000 2500
+Connection ~ 1000 2500
+Wire Wire Line
+	1000 2500 1000 2550
+$EndSCHEMATC
