@@ -46,8 +46,8 @@ void ToggleBit(bool*);
 #define _PSC 71             // Prescaler value
 #define ARR_50Hz 19999      // ARR Value for 50Hz (20ms) at 72MHz & 71 PSC
 #define ARR_200Hz 4999      // ARR Value for 200Hz (5ms) at 72MHz & 71 PSC
-#define MIN_PWM_WIDTH 1000  // Minimum PWM witdh (microseconds)
-#define MAX_PWM_WIDTH 2000  // Maximum PWM witdh (microseconds)
+#define MIN_PWM_WIDTH 1000  // Minimum PWM width (microseconds)
+#define MAX_PWM_WIDTH 2000  // Maximum PWM width (microseconds)
 #define PWM1_PIN PB6        // PWM pin 1
 #define PWM2_PIN PB7        // PWM pin 2
 #define PWM3_PIN PB8        // PWM pin 3
