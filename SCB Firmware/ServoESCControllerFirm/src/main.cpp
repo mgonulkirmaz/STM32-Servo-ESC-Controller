@@ -2,8 +2,8 @@
  * @file main.c
  * @author Mustafa Gönülkırmaz (mgonulkrmaz@gmail.com)
  * @brief STM32F103C8 MCU based Servo - ESC Controller Board
- * @version 0.3
- * @date 2021-03-12
+ * @version 1.0
+ * @date 2021-03-31
  *
  * @copyright Copyright (c) 2021
  *
