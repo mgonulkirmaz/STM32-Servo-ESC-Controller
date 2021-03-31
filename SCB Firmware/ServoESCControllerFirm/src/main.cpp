@@ -39,12 +39,10 @@ typedef enum {
 
 void SystemClock_Config(void);
 void PeriphClock_Config(void);
-void ISR_Config(void);
 void GPIO_Config(void);
 void Timer_Config(void);
 void Timer4_CEN(bool);
 void UpdateTimerWidths(void);
-void ToggleBit(bool *);
 void updateScreen(void);
 void rotaryControl(void);
 void onRotaryMovement(void);
@@ -57,12 +55,12 @@ void onButtonPress(void);
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define SCREEN_ADDRESS 0x3C
-#define OLED_RESET -1
-#define ROTARY_BUTTON PA0
+#define OLED_RESET -1      // OLED Screen defines
+#define ROTARY_BUTTON PA0  // Rotary Pins
 #define ROTARY_CLK PA1
 #define ROTARY_DT PA4
-#define SCL_PIN PB10
-#define SDA_PIN PB11
+#define SCL_PIN PB10        // SCL Pin
+#define SDA_PIN PB11        // SDA Pin
 #define PSC_VAL 71          // Prescaler value
 #define ARR_50Hz 19999      // ARR Value for 50Hz (20ms) at 72MHz & 71 PSC
 #define ARR_200Hz 4999      // ARR Value for 200Hz (5ms) at 72MHz & 71 PSC
@@ -72,18 +70,11 @@ void onButtonPress(void);
 #define PWM2_PIN PB7        // PWM pin 2
 #define PWM3_PIN PB8        // PWM pin 3
 #define PWM4_PIN PB9        // PWM pin 4
-#define PWM_START_PIN PB12  // External input button to start/stop pwm
 
 /**
  ****************************************************
  *     Variables
  ***************************************************/
-
-uint16_t pwm1 = 1500;  // PWM Width for Channel 1
-uint16_t pwm2 = 1500;  // PWM Width for Channel 2
-uint16_t pwm3 = 1500;  // PWM Width for Channel 3
-uint16_t pwm4 = 1500;  // PWM Width for Channel 4
-bool clken = true;     // Timer state
 
 uint16_t ch_value[4] = {1500, 1500, 1500, 1500};
 bool ch_selected[4] = {false, false, false, false};
@@ -137,6 +128,10 @@ void loop() {
   delay(150);
 }
 
+/**
+ * @brief Rotary encoder turn interrupt
+ *
+ */
 void onRotaryMovement(void) {
   noInterrupts();
   CLK[1] = (GPIOA->IDR >> 1 & 0x01);
@@ -160,6 +155,10 @@ void onRotaryMovement(void) {
   interrupts();
 }
 
+/**
+ * @brief Rotary button interrupt
+ *
+ */
 void onButtonPress(void) {
   noInterrupts();
   switch (ch_counter) {
@@ -179,6 +178,10 @@ void onButtonPress(void) {
   interrupts();
 }
 
+/**
+ * @brief Rotary encoder control routine
+ *
+ */
 void rotaryControl(void) {
   if (ch_selected[0] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
@@ -263,6 +266,10 @@ void rotaryControl(void) {
   }
 }
 
+/**
+ * @brief Update screen routine
+ *
+ */
 void updateScreen(void) {
   display.clearDisplay();
   display.setTextSize(1);
@@ -415,16 +422,4 @@ void Timer4_CEN(bool state) {
     TIM4->CR1 |= TIM_CR1_CEN;
   else
     TIM4->CR1 &= ~TIM_CR1_CEN;
-}
-
-/**
- * @brief Bool toggle function
- *
- * @param bit
- */
-void ToggleBit(bool *bit) {
-  if (*bit == false)
-    *bit = true;
-  else
-    *bit = false;
 }
