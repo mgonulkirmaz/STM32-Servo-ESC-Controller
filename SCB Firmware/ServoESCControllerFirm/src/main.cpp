@@ -42,30 +42,32 @@ void PeriphClock_Config(void);
 void GPIO_Config(void);
 void Timer_Config(void);
 void Timer4_CEN(bool);
+void TimerCapComSet(uint8_t, bool);
 void UpdateTimerWidths(void);
 void updateScreen(void);
 void rotaryControl(void);
-void onRotaryMovement(void);
+void checkRotaryRotation(void);
 void onButtonPress(void);
 
 /**
  ****************************************************
  *     Defines
  ***************************************************/
+
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define SCREEN_ADDRESS 0x3C
-#define OLED_RESET -1      // OLED Screen defines
-#define ROTARY_BUTTON PA0  // Rotary Pins
-#define ROTARY_CLK PA1
-#define ROTARY_DT PA4
+#define OLED_RESET -1  // OLED Screen defines
+#define CLK_PIN PA0
+#define DT_PIN PA1
+#define SW_PIN PA4
 #define SCL_PIN PB10        // SCL Pin
 #define SDA_PIN PB11        // SDA Pin
 #define PSC_VAL 71          // Prescaler value
 #define ARR_50Hz 19999      // ARR Value for 50Hz (20ms) at 72MHz & 71 PSC
 #define ARR_200Hz 4999      // ARR Value for 200Hz (5ms) at 72MHz & 71 PSC
-#define MIN_PWM_WIDTH 1000  // Minimum PWM width (microseconds)
-#define MAX_PWM_WIDTH 2000  // Maximum PWM width (microseconds)
+#define MIN_PWM_WIDTH 500   // Minimum PWM width (microseconds)
+#define MAX_PWM_WIDTH 2400  // Maximum PWM width (microseconds)
 #define PWM1_PIN PB6        // PWM pin 1
 #define PWM2_PIN PB7        // PWM pin 2
 #define PWM3_PIN PB8        // PWM pin 3
@@ -78,10 +80,16 @@ void onButtonPress(void);
 
 uint16_t ch_value[4] = {1500, 1500, 1500, 1500};
 bool ch_selected[4] = {false, false, false, false};
+bool ch_en[4] = {false, false, false, false};
+bool refresh = false;
 uint8_t ch_counter = 0;
 
-uint8_t CLK[2];
-uint8_t DT;
+uint32_t lastDebounce = 0;
+uint32_t debounceDelay = 10;
+uint32_t lastButtonDebounce = 0;
+uint32_t buttonDebounceDelay = 250;
+
+volatile uint8_t prevPinStates;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RotaryRotation_t rotaryRotation = ROTARY_NOTHING;
@@ -100,82 +108,103 @@ void setup() {
       ;
   }
 
-  CLK[0] = (GPIOA->IDR >> 1 & 0x01);
-  DT = (GPIOA->IDR >> 4 & 0x01);
-
-  attachInterrupt(digitalPinToInterrupt(ROTARY_CLK), onRotaryMovement, RISING);
-  attachInterrupt(digitalPinToInterrupt(ROTARY_BUTTON), onButtonPress, FALLING);
+  prevPinStates = (GPIOA->IDR & 0x03);
 
   display.display();
-  delay(1000);
+  delay(500);
   display.clearDisplay();
   display.drawPixel(10, 10, SSD1306_WHITE);
   display.display();
-  delay(500);
+  delay(250);
   display.invertDisplay(true);
-  delay(1000);
+  delay(500);
   display.invertDisplay(false);
-  delay(1000);
+  delay(500);
   display.clearDisplay();
+
+  // For test purpose only
+  for (uint8_t i = 0; i < 4; i++) {
+    ch_en[i] = true;
+    TimerCapComSet(i, ch_en[i]);
+  }
+
   updateScreen();
 }
 
 void loop() {
+  checkRotaryRotation();
   rotaryControl();
   rotaryRotation = ROTARY_NOTHING;
-  UpdateTimerWidths();
-  updateScreen();
-  delay(150);
+
+  if ((GPIOA->IDR & (1 << 4)) == 0) {
+    onButtonPress();
+  }
 }
 
 /**
- * @brief Rotary encoder turn interrupt
+ * @brief Rotary encoder turn check routine
  *
  */
-void onRotaryMovement(void) {
-  noInterrupts();
-  CLK[1] = (GPIOA->IDR >> 1 & 0x01);
-  DT = (GPIOA->IDR >> 4 & 0x01);
-
-  if (CLK[1] != CLK[0] && CLK[1] == 1) {
-    if (DT == CLK[1]) {
-      rotaryRotation = ROTARY_INCREMENT;
-    } else {
-      rotaryRotation = ROTARY_DECRAMENT;
+void checkRotaryRotation(void) {
+  if ((HAL_GetTick() - lastDebounce) > debounceDelay) {
+    if (prevPinStates == 0x00) {
+      if ((GPIOA->IDR & 0x03) == 0x01) {
+        rotaryRotation = ROTARY_DECRAMENT;
+      }
+      if ((GPIOA->IDR & 0x03) == 0x02) {
+        rotaryRotation = ROTARY_INCREMENT;
+      }
+    } else if (prevPinStates == 0x01) {
+      if ((GPIOA->IDR & 0x03) == 0x03) {
+        rotaryRotation = ROTARY_DECRAMENT;
+      }
+      if ((GPIOA->IDR & 0x03) == 0x00) {
+        rotaryRotation = ROTARY_INCREMENT;
+      }
+    } else if (prevPinStates == 0x02) {
+      if ((GPIOA->IDR & 0x03) == 0x00) {
+        rotaryRotation = ROTARY_DECRAMENT;
+      }
+      if ((GPIOA->IDR & 0x03) == 0x03) {
+        rotaryRotation = ROTARY_INCREMENT;
+      }
+    } else if (prevPinStates == 0x03) {
+      if ((GPIOA->IDR & 0x03) == 0x02) {
+        rotaryRotation = ROTARY_DECRAMENT;
+      }
+      if ((GPIOA->IDR & 0x03) == 0x01) {
+        rotaryRotation = ROTARY_INCREMENT;
+      }
     }
-    CLK[0] = CLK[1];
-  } else if (CLK[1] != CLK[0] && CLK[1] == 0) {
-    if (DT != CLK[1]) {
-      rotaryRotation = ROTARY_INCREMENT;
-    } else {
-      rotaryRotation = ROTARY_DECRAMENT;
-    }
-    CLK[0] = CLK[1];
+    prevPinStates = (GPIOA->IDR & 0x03);
+    lastDebounce = HAL_GetTick();
   }
-  interrupts();
 }
 
 /**
- * @brief Rotary button interrupt
+ * @brief Rotary button check routine
  *
  */
 void onButtonPress(void) {
-  noInterrupts();
-  switch (ch_counter) {
-    case 0:
-      ch_selected[0] = !ch_selected[0];
-      break;
-    case 1:
-      ch_selected[1] = !ch_selected[1];
-      break;
-    case 2:
-      ch_selected[2] = !ch_selected[2];
-      break;
-    case 3:
-      ch_selected[3] = !ch_selected[3];
-      break;
+  if ((millis() - lastButtonDebounce) > buttonDebounceDelay) {
+    switch (ch_counter) {
+      case 0:
+        ch_selected[0] = !ch_selected[0];
+        break;
+      case 1:
+        ch_selected[1] = !ch_selected[1];
+        break;
+      case 2:
+        ch_selected[2] = !ch_selected[2];
+        break;
+      case 3:
+        ch_selected[3] = !ch_selected[3];
+        break;
+    }
+    UpdateTimerWidths();
+    updateScreen();
+    lastButtonDebounce = HAL_GetTick();
   }
-  interrupts();
 }
 
 /**
@@ -186,14 +215,14 @@ void rotaryControl(void) {
   if (ch_selected[0] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
       if (rotaryRotation == ROTARY_INCREMENT) {
-        if (ch_value[0] < 1990) {
+        if (ch_value[0] < MAX_PWM_WIDTH - 10) {
           ch_value[0] += 10;
         } else {
-          ch_value[0] = 2000;
+          ch_value[0] = MAX_PWM_WIDTH;
         }
       } else if (rotaryRotation == ROTARY_DECRAMENT) {
-        if (ch_value[0] < 1010) {
-          ch_value[0] = 1000;
+        if (ch_value[0] < MIN_PWM_WIDTH + 10) {
+          ch_value[0] = MIN_PWM_WIDTH;
         } else {
           ch_value[0] -= 10;
         }
@@ -202,14 +231,14 @@ void rotaryControl(void) {
   } else if (ch_selected[1] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
       if (rotaryRotation == ROTARY_INCREMENT) {
-        if (ch_value[1] < 1990) {
+        if (ch_value[1] < MAX_PWM_WIDTH - 10) {
           ch_value[1] += 10;
         } else {
-          ch_value[1] = 2000;
+          ch_value[1] = MAX_PWM_WIDTH;
         }
       } else if (rotaryRotation == ROTARY_DECRAMENT) {
-        if (ch_value[1] < 1010) {
-          ch_value[1] = 1000;
+        if (ch_value[1] < MIN_PWM_WIDTH + 10) {
+          ch_value[1] = MIN_PWM_WIDTH;
         } else {
           ch_value[1] -= 10;
         }
@@ -218,14 +247,14 @@ void rotaryControl(void) {
   } else if (ch_selected[2] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
       if (rotaryRotation == ROTARY_INCREMENT) {
-        if (ch_value[2] < 1990) {
+        if (ch_value[2] < MAX_PWM_WIDTH - 10) {
           ch_value[2] += 10;
         } else {
-          ch_value[2] = 2000;
+          ch_value[2] = MAX_PWM_WIDTH;
         }
       } else if (rotaryRotation == ROTARY_DECRAMENT) {
-        if (ch_value[2] < 1010) {
-          ch_value[2] = 1000;
+        if (ch_value[2] < MIN_PWM_WIDTH + 10) {
+          ch_value[2] = MIN_PWM_WIDTH;
         } else {
           ch_value[2] -= 10;
         }
@@ -234,14 +263,14 @@ void rotaryControl(void) {
   } else if (ch_selected[3] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
       if (rotaryRotation == ROTARY_INCREMENT) {
-        if (ch_value[3] < 1990) {
+        if (ch_value[3] < MAX_PWM_WIDTH - 10) {
           ch_value[3] += 10;
         } else {
-          ch_value[3] = 2000;
+          ch_value[3] = MAX_PWM_WIDTH;
         }
       } else if (rotaryRotation == ROTARY_DECRAMENT) {
-        if (ch_value[3] < 1010) {
-          ch_value[3] = 1000;
+        if (ch_value[3] < MIN_PWM_WIDTH + 10) {
+          ch_value[3] = MIN_PWM_WIDTH;
         } else {
           ch_value[3] -= 10;
         }
@@ -264,6 +293,9 @@ void rotaryControl(void) {
       }
     }
   }
+  if (rotaryRotation != ROTARY_NOTHING) {
+    updateScreen();
+  }
 }
 
 /**
@@ -278,26 +310,29 @@ void updateScreen(void) {
   display.println("KANAL 1: ");
   display.setCursor(60, 10);
   display.println(ch_value[0]);
+  display.setCursor(100, 10);
+  display.println(ch_en[0]);
 
   display.setCursor(10, 20);
   display.println("KANAL 2: ");
   display.setCursor(60, 20);
   display.println(ch_value[1]);
+  display.setCursor(100, 20);
+  display.println(ch_en[1]);
 
   display.setCursor(10, 30);
   display.println("KANAL 3: ");
   display.setCursor(60, 30);
   display.println(ch_value[2]);
+  display.setCursor(100, 30);
+  display.println(ch_en[2]);
 
   display.setCursor(10, 40);
   display.println("KANAL 4: ");
   display.setCursor(60, 40);
   display.println(ch_value[3]);
-
-  display.setCursor(10, 50);
-  display.println("SECIM : ");
-  display.setCursor(60, 50);
-  display.println(ch_counter + 1);
+  display.setCursor(100, 40);
+  display.println(ch_en[3]);
 
   if (ch_selected[0] == true) {
     display.setCursor(2, (ch_counter * 10) + 10);
@@ -369,11 +404,10 @@ void GPIO_Config(void) {
   GPIOB->CRH =
       (GPIO_CRH_MODE8 | GPIO_CRH_CNF8_1 | GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1 |
        (0b00 << GPIO_CRH_MODE12_Pos) | GPIO_CRH_CNF12_1);
-  GPIOB->ODR |= GPIO_ODR_ODR12;
 
-  pinMode(ROTARY_BUTTON, INPUT_PULLUP);
-  pinMode(ROTARY_CLK, INPUT_PULLUP);
-  pinMode(ROTARY_DT, INPUT_PULLUP);
+  pinMode(CLK_PIN, INPUT);
+  pinMode(DT_PIN, INPUT);
+  pinMode(SW_PIN, INPUT_PULLUP);
 }
 
 /**
@@ -390,7 +424,7 @@ void Timer_Config(void) {
                  0b110 << TIM_CCMR1_OC2M_Pos | TIM_CCMR1_OC2PE);
   TIM4->CCMR2 = (0b110 << TIM_CCMR2_OC3M_Pos | TIM_CCMR2_OC3PE |
                  0b110 << TIM_CCMR2_OC4M_Pos | TIM_CCMR2_OC4PE);
-  TIM4->CCER = (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E);
+  TIM4->CCER = 0;
   TIM4->PSC = PSC_VAL;
   TIM4->ARR = ARR_50Hz;
   TIM4->DCR = 0;
@@ -422,4 +456,18 @@ void Timer4_CEN(bool state) {
     TIM4->CR1 |= TIM_CR1_CEN;
   else
     TIM4->CR1 &= ~TIM_CR1_CEN;
+}
+
+/**
+ * @brief Timer Capture/Compare Enable/Disable function
+ *
+ */
+void TimerCapComSet(uint8_t channel, bool setValue) {
+  if (channel >= 0 && channel < 4) {
+    if (setValue) {
+      TIM4->CCER |= (1 << channel);
+    } else {
+      TIM4->CCER &= ~(1 << channel);
+    }
+  }
 }
