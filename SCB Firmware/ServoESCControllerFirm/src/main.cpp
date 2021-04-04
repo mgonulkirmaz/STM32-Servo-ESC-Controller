@@ -48,6 +48,7 @@ void updateScreen(void);
 void rotaryControl(void);
 void checkRotaryRotation(void);
 void onButtonPress(void);
+void onEnButtonPress(void);
 
 /**
  ****************************************************
@@ -61,6 +62,7 @@ void onButtonPress(void);
 #define CLK_PIN PA0
 #define DT_PIN PA1
 #define SW_PIN PA4
+#define SW_EN_PIN PA5
 #define SCL_PIN PB10        // SCL Pin
 #define SDA_PIN PB11        // SDA Pin
 #define PSC_VAL 71          // Prescaler value
@@ -72,6 +74,7 @@ void onButtonPress(void);
 #define PWM2_PIN PB7        // PWM pin 2
 #define PWM3_PIN PB8        // PWM pin 3
 #define PWM4_PIN PB9        // PWM pin 4
+#define Y_OFFSET_CHW 13
 
 /**
  ****************************************************
@@ -85,9 +88,11 @@ bool refresh = false;
 uint8_t ch_counter = 0;
 
 uint32_t lastDebounce = 0;
-uint32_t debounceDelay = 10;
+uint32_t debounceDelay = 5;
 uint32_t lastButtonDebounce = 0;
 uint32_t buttonDebounceDelay = 250;
+uint32_t lastEnButtonDebounce = 0;
+uint32_t buttonEnDebounceDelay = 250;
 
 volatile uint8_t prevPinStates;
 
@@ -122,9 +127,10 @@ void setup() {
   delay(500);
   display.clearDisplay();
 
-  // For test purpose only
+  Timer4_CEN(true);
+
   for (uint8_t i = 0; i < 4; i++) {
-    ch_en[i] = true;
+    ch_en[i] = false;
     TimerCapComSet(i, ch_en[i]);
   }
 
@@ -138,6 +144,9 @@ void loop() {
 
   if ((GPIOA->IDR & (1 << 4)) == 0) {
     onButtonPress();
+  }
+  if ((GPIOA->IDR & (1 << 5)) == 0) {
+    onEnButtonPress();
   }
 }
 
@@ -154,27 +163,6 @@ void checkRotaryRotation(void) {
       if ((GPIOA->IDR & 0x03) == 0x02) {
         rotaryRotation = ROTARY_INCREMENT;
       }
-    } else if (prevPinStates == 0x01) {
-      if ((GPIOA->IDR & 0x03) == 0x03) {
-        rotaryRotation = ROTARY_DECRAMENT;
-      }
-      if ((GPIOA->IDR & 0x03) == 0x00) {
-        rotaryRotation = ROTARY_INCREMENT;
-      }
-    } else if (prevPinStates == 0x02) {
-      if ((GPIOA->IDR & 0x03) == 0x00) {
-        rotaryRotation = ROTARY_DECRAMENT;
-      }
-      if ((GPIOA->IDR & 0x03) == 0x03) {
-        rotaryRotation = ROTARY_INCREMENT;
-      }
-    } else if (prevPinStates == 0x03) {
-      if ((GPIOA->IDR & 0x03) == 0x02) {
-        rotaryRotation = ROTARY_DECRAMENT;
-      }
-      if ((GPIOA->IDR & 0x03) == 0x01) {
-        rotaryRotation = ROTARY_INCREMENT;
-      }
     }
     prevPinStates = (GPIOA->IDR & 0x03);
     lastDebounce = HAL_GetTick();
@@ -186,7 +174,7 @@ void checkRotaryRotation(void) {
  *
  */
 void onButtonPress(void) {
-  if ((millis() - lastButtonDebounce) > buttonDebounceDelay) {
+  if ((HAL_GetTick() - lastButtonDebounce) > buttonDebounceDelay) {
     switch (ch_counter) {
       case 0:
         ch_selected[0] = !ch_selected[0];
@@ -200,10 +188,44 @@ void onButtonPress(void) {
       case 3:
         ch_selected[3] = !ch_selected[3];
         break;
+      default:
+        break;
     }
     UpdateTimerWidths();
     updateScreen();
     lastButtonDebounce = HAL_GetTick();
+  }
+}
+
+/**
+ * @brief Enable/Disable button check routine
+ *
+ */
+void onEnButtonPress(void) {
+  if ((HAL_GetTick() - lastEnButtonDebounce) > buttonEnDebounceDelay) {
+    switch (ch_counter) {
+      case 0:
+        ch_en[0] = !ch_en[0];
+        TimerCapComSet(0, ch_en[0]);
+        break;
+      case 1:
+        ch_en[1] = !ch_en[1];
+        TimerCapComSet(1, ch_en[1]);
+        break;
+      case 2:
+        ch_en[2] = !ch_en[2];
+        TimerCapComSet(2, ch_en[2]);
+        break;
+      case 3:
+        ch_en[3] = !ch_en[3];
+        TimerCapComSet(3, ch_en[3]);
+        break;
+      default:
+        break;
+    }
+    UpdateTimerWidths();
+    updateScreen();
+    lastEnButtonDebounce = HAL_GetTick();
   }
 }
 
@@ -306,48 +328,49 @@ void updateScreen(void) {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
-  display.setCursor(10, 10);
+
+  display.setCursor(12, Y_OFFSET_CHW * 1);
   display.println("KANAL 1: ");
-  display.setCursor(60, 10);
+  display.setCursor(64, Y_OFFSET_CHW * 1);
   display.println(ch_value[0]);
-  display.setCursor(100, 10);
-  display.println(ch_en[0]);
+  display.setCursor(108, Y_OFFSET_CHW * 1);
+  display.println(ch_en[0] ? "A" : "P");
 
-  display.setCursor(10, 20);
+  display.setCursor(12, Y_OFFSET_CHW * 2);
   display.println("KANAL 2: ");
-  display.setCursor(60, 20);
+  display.setCursor(64, Y_OFFSET_CHW * 2);
   display.println(ch_value[1]);
-  display.setCursor(100, 20);
-  display.println(ch_en[1]);
+  display.setCursor(108, Y_OFFSET_CHW * 2);
+  display.println(ch_en[1] ? "A" : "P");
 
-  display.setCursor(10, 30);
+  display.setCursor(12, Y_OFFSET_CHW * 3);
   display.println("KANAL 3: ");
-  display.setCursor(60, 30);
+  display.setCursor(64, Y_OFFSET_CHW * 3);
   display.println(ch_value[2]);
-  display.setCursor(100, 30);
-  display.println(ch_en[2]);
+  display.setCursor(108, Y_OFFSET_CHW * 3);
+  display.println(ch_en[2] ? "A" : "P");
 
-  display.setCursor(10, 40);
+  display.setCursor(12, Y_OFFSET_CHW * 4);
   display.println("KANAL 4: ");
-  display.setCursor(60, 40);
+  display.setCursor(64, Y_OFFSET_CHW * 4);
   display.println(ch_value[3]);
-  display.setCursor(100, 40);
-  display.println(ch_en[3]);
+  display.setCursor(108, Y_OFFSET_CHW * 4);
+  display.println(ch_en[3] ? "A" : "P");
 
   if (ch_selected[0] == true) {
-    display.setCursor(2, (ch_counter * 10) + 10);
+    display.setCursor(4, (ch_counter * Y_OFFSET_CHW) + Y_OFFSET_CHW);
     display.print("X");
   } else if (ch_selected[1] == true) {
-    display.setCursor(2, (ch_counter * 10) + 10);
+    display.setCursor(4, (ch_counter * Y_OFFSET_CHW) + Y_OFFSET_CHW);
     display.print("X");
   } else if (ch_selected[2] == true) {
-    display.setCursor(2, (ch_counter * 10) + 10);
+    display.setCursor(4, (ch_counter * Y_OFFSET_CHW) + Y_OFFSET_CHW);
     display.print("X");
   } else if (ch_selected[3] == true) {
-    display.setCursor(2, (ch_counter * 10) + 10);
+    display.setCursor(4, (ch_counter * Y_OFFSET_CHW) + Y_OFFSET_CHW);
     display.print("X");
   } else {
-    display.setCursor(2, (ch_counter * 10) + 10);
+    display.setCursor(4, (ch_counter * Y_OFFSET_CHW) + Y_OFFSET_CHW);
     display.println(">");
   }
 
@@ -390,7 +413,7 @@ void SystemClock_Config(void) {
  *
  */
 void PeriphClock_Config(void) {
-  RCC->APB2ENR = RCC_APB2ENR_IOPBEN;
+  RCC->APB2ENR = RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPAEN;
   RCC->APB1ENR = RCC_APB1ENR_TIM4EN;
 }
 
@@ -405,9 +428,14 @@ void GPIO_Config(void) {
       (GPIO_CRH_MODE8 | GPIO_CRH_CNF8_1 | GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1 |
        (0b00 << GPIO_CRH_MODE12_Pos) | GPIO_CRH_CNF12_1);
 
-  pinMode(CLK_PIN, INPUT);
+  GPIOA->CRL = (0b00 << GPIO_CRL_MODE0_Pos) | GPIO_CRL_CNF0_1 |
+               (0b00 << GPIO_CRL_MODE1_Pos) | GPIO_CRL_CNF1_1 |
+               (0b00 << GPIO_CRL_MODE4_Pos) | GPIO_CRL_CNF4_1 |
+               (0b00 << GPIO_CRL_MODE5_Pos) | GPIO_CRL_CNF5_1;
+
+  /*pinMode(CLK_PIN, INPUT);
   pinMode(DT_PIN, INPUT);
-  pinMode(SW_PIN, INPUT_PULLUP);
+  pinMode(SW_PIN, INPUT_PULLUP);*/
 }
 
 /**
@@ -432,7 +460,6 @@ void Timer_Config(void) {
   TIM4->CCR2 = ch_value[1];
   TIM4->CCR3 = ch_value[2];
   TIM4->CCR4 = ch_value[3];
-  TIM4->CR1 |= TIM_CR1_CEN;
 }
 
 /**
@@ -465,9 +492,9 @@ void Timer4_CEN(bool state) {
 void TimerCapComSet(uint8_t channel, bool setValue) {
   if (channel >= 0 && channel < 4) {
     if (setValue) {
-      TIM4->CCER |= (1 << channel);
+      TIM4->CCER |= (1 << (channel * 4));
     } else {
-      TIM4->CCER &= ~(1 << channel);
+      TIM4->CCER &= ~(1 << (channel * 4));
     }
   }
 }
