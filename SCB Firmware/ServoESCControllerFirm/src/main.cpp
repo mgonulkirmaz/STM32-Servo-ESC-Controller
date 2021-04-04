@@ -2,7 +2,7 @@
  * @file main.c
  * @author Mustafa Gönülkırmaz (mgonulkrmaz@gmail.com)
  * @brief STM32F103C8 MCU based Servo - ESC Controller Board
- * @version 1.0
+ * @version 1.2
  * @date 2021-03-31
  *
  * @copyright Copyright (c) 2021
@@ -45,8 +45,8 @@ void Timer4_CEN(bool);
 void TimerCapComSet(uint8_t, bool);
 void UpdateTimerWidths(void);
 void updateScreen(void);
+void rotaryCheck(void);
 void rotaryControl(void);
-void checkRotaryRotation(void);
 void onButtonPress(void);
 void onEnButtonPress(void);
 
@@ -59,22 +59,25 @@ void onEnButtonPress(void);
 #define SCREEN_HEIGHT 64
 #define SCREEN_ADDRESS 0x3C
 #define OLED_RESET -1  // OLED Screen defines
-#define CLK_PIN PA0
-#define DT_PIN PA1
-#define SW_PIN PA4
-#define SW_EN_PIN PA5
-#define SCL_PIN PB10        // SCL Pin
-#define SDA_PIN PB11        // SDA Pin
-#define PSC_VAL 71          // Prescaler value
-#define ARR_50Hz 19999      // ARR Value for 50Hz (20ms) at 72MHz & 71 PSC
-#define ARR_200Hz 4999      // ARR Value for 200Hz (5ms) at 72MHz & 71 PSC
+#define Y_OFFSET_CHW 13
+
+#define PSC_VAL 71      // Prescaler value
+#define ARR_50Hz 19999  // ARR Value for 50Hz (20ms) at 72MHz & 71 PSC
+#define ARR_200Hz 4999  // ARR Value for 200Hz (5ms) at 72MHz & 71 PSC
+
 #define MIN_PWM_WIDTH 500   // Minimum PWM width (microseconds)
 #define MAX_PWM_WIDTH 2400  // Maximum PWM width (microseconds)
-#define PWM1_PIN PB6        // PWM pin 1
-#define PWM2_PIN PB7        // PWM pin 2
-#define PWM3_PIN PB8        // PWM pin 3
-#define PWM4_PIN PB9        // PWM pin 4
-#define Y_OFFSET_CHW 13
+
+#define CLK_PIN PA0    // Rotary Encoder CLK Pin
+#define DT_PIN PA1     // Rotary Encoder DT Pin
+#define SW_PIN PA4     // Rotary Encoder Button
+#define SW_EN_PIN PA5  // Enable/Disable Button
+#define SCL_PIN PB10   // SCL Pin
+#define SDA_PIN PB11   // SDA Pin
+#define PWM_PIN1 PB6   // PWM pin 1
+#define PWM_PIN2 PB7   // PWM pin 2
+#define PWM_PIN3 PB8   // PWM pin 3
+#define PWM_PIN4 PB9   // PWM pin 4
 
 /**
  ****************************************************
@@ -84,7 +87,6 @@ void onEnButtonPress(void);
 uint16_t ch_value[4] = {1500, 1500, 1500, 1500};
 bool ch_selected[4] = {false, false, false, false};
 bool ch_en[4] = {false, false, false, false};
-bool refresh = false;
 uint8_t ch_counter = 0;
 
 uint32_t lastDebounce = 0;
@@ -113,18 +115,13 @@ void setup() {
       ;
   }
 
-  prevPinStates = (GPIOA->IDR & 0x03);
-
   display.display();
-  delay(500);
+  delay(100);
   display.clearDisplay();
-  display.drawPixel(10, 10, SSD1306_WHITE);
-  display.display();
-  delay(250);
   display.invertDisplay(true);
-  delay(500);
+  delay(250);
   display.invertDisplay(false);
-  delay(500);
+  delay(250);
   display.clearDisplay();
 
   Timer4_CEN(true);
@@ -135,11 +132,12 @@ void setup() {
   }
 
   updateScreen();
+  prevPinStates = (GPIOA->IDR & 0x03);
 }
 
 void loop() {
-  checkRotaryRotation();
   rotaryControl();
+  rotaryCheck();
   rotaryRotation = ROTARY_NOTHING;
 
   if ((GPIOA->IDR & (1 << 4)) == 0) {
@@ -154,7 +152,7 @@ void loop() {
  * @brief Rotary encoder turn check routine
  *
  */
-void checkRotaryRotation(void) {
+void rotaryControl(void) {
   if ((HAL_GetTick() - lastDebounce) > debounceDelay) {
     if (prevPinStates == 0x00) {
       if ((GPIOA->IDR & 0x03) == 0x01) {
@@ -233,7 +231,7 @@ void onEnButtonPress(void) {
  * @brief Rotary encoder control routine
  *
  */
-void rotaryControl(void) {
+void rotaryCheck(void) {
   if (ch_selected[0] == true) {
     if (rotaryRotation != ROTARY_NOTHING) {
       if (rotaryRotation == ROTARY_INCREMENT) {
@@ -433,9 +431,7 @@ void GPIO_Config(void) {
                (0b00 << GPIO_CRL_MODE4_Pos) | GPIO_CRL_CNF4_1 |
                (0b00 << GPIO_CRL_MODE5_Pos) | GPIO_CRL_CNF5_1;
 
-  /*pinMode(CLK_PIN, INPUT);
-  pinMode(DT_PIN, INPUT);
-  pinMode(SW_PIN, INPUT_PULLUP);*/
+  GPIOA->ODR |= GPIO_ODR_ODR4 | GPIO_ODR_ODR5;
 }
 
 /**
