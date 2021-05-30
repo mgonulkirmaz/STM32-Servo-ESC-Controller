@@ -49,6 +49,9 @@ void rotaryCheck(void);
 void rotaryControl(void);
 void onButtonPress(void);
 void onEnButtonPress(void);
+void onAllEnButtonPress(void);
+void onAllDisableButtonPress(void);
+void onSetMidButtonPress(void);
 
 /**
  ****************************************************
@@ -68,16 +71,22 @@ void onEnButtonPress(void);
 #define MIN_PWM_WIDTH 500   // Minimum PWM width (microseconds)
 #define MAX_PWM_WIDTH 2400  // Maximum PWM width (microseconds)
 
-#define CLK_PIN PA0    // Rotary Encoder CLK Pin
-#define DT_PIN PA1     // Rotary Encoder DT Pin
-#define SW_PIN PA4     // Rotary Encoder Button
-#define SW_EN_PIN PA5  // Enable/Disable Button
-#define SCL_PIN PB10   // SCL Pin
-#define SDA_PIN PB11   // SDA Pin
-#define PWM_PIN1 PB6   // PWM pin 1
-#define PWM_PIN2 PB7   // PWM pin 2
-#define PWM_PIN3 PB8   // PWM pin 3
-#define PWM_PIN4 PB9   // PWM pin 4
+// PORTA Input-Outputs
+#define CLK 0  // Rotary Encoder CLK Pin
+#define DT 1   // Rotary Encoder DT Pin
+#define SW0 3  // Rotary Encoder Button
+#define SW1 4
+#define SW2 5
+#define SW3 6
+#define SW4 7
+
+// PORTB Input-Outputs
+#define SCL_PIN PB10  // SCL Pin
+#define SDA_PIN PB11  // SDA Pin
+#define PWM_PIN1 PB6  // PWM pin 1
+#define PWM_PIN2 PB7  // PWM pin 2
+#define PWM_PIN3 PB8  // PWM pin 3
+#define PWM_PIN4 PB9  // PWM pin 4
 
 /**
  ****************************************************
@@ -116,12 +125,12 @@ void setup() {
   }
 
   display.display();
-  delay(100);
+  HAL_Delay(100);
   display.clearDisplay();
   display.invertDisplay(true);
-  delay(250);
+  HAL_Delay(250);
   display.invertDisplay(false);
-  delay(250);
+  HAL_Delay(250);
   display.clearDisplay();
 
   Timer4_CEN(true);
@@ -140,11 +149,20 @@ void loop() {
   rotaryCheck();
   rotaryRotation = ROTARY_NOTHING;
 
-  if ((GPIOA->IDR & (1 << 4)) == 0) {
+  if ((GPIOA->IDR & (1 << SW0)) == 0) {
     onButtonPress();
   }
-  if ((GPIOA->IDR & (1 << 5)) == 0) {
+  if ((GPIOA->IDR & (1 << SW1)) == 0) {
     onEnButtonPress();
+  }
+  if ((GPIOA->IDR & (1 << SW2)) == 0) {
+    onAllEnButtonPress();
+  }
+  if ((GPIOA->IDR & (1 << SW3)) == 0) {
+    onAllDisableButtonPress();
+  }
+  if ((GPIOA->IDR & (1 << SW4)) == 0) {
+    onSetMidButtonPress();
   }
 }
 
@@ -224,6 +242,70 @@ void onEnButtonPress(void) {
     UpdateTimerWidths();
     updateScreen();
     lastEnButtonDebounce = HAL_GetTick();
+  }
+}
+
+void onAllEnButtonPress(void) {
+  if ((HAL_GetTick() - lastEnButtonDebounce) > buttonEnDebounceDelay) {
+    ch_en[0] = 1;
+    TimerCapComSet(0, ch_en[0]);
+    ch_en[1] = 1;
+    TimerCapComSet(1, ch_en[1]);
+    ch_en[2] = 1;
+    TimerCapComSet(2, ch_en[2]);
+    ch_en[3] = 1;
+    TimerCapComSet(3, ch_en[3]);
+
+    UpdateTimerWidths();
+    updateScreen();
+    lastEnButtonDebounce = HAL_GetTick();
+  }
+}
+void onAllDisableButtonPress(void) {
+  if ((HAL_GetTick() - lastEnButtonDebounce) > buttonEnDebounceDelay) {
+    ch_en[0] = 0;
+    TimerCapComSet(0, ch_en[0]);
+    ch_en[1] = 0;
+    TimerCapComSet(1, ch_en[1]);
+    ch_en[2] = 0;
+    TimerCapComSet(2, ch_en[2]);
+    ch_en[3] = 0;
+    TimerCapComSet(3, ch_en[3]);
+
+    UpdateTimerWidths();
+    updateScreen();
+    lastEnButtonDebounce = HAL_GetTick();
+  }
+}
+void onSetMidButtonPress(void) {
+  if ((HAL_GetTick() - lastButtonDebounce) > buttonDebounceDelay) {
+    switch (ch_counter) {
+      case 0:
+        if (ch_selected[0]) {
+          ch_value[0] = (MAX_PWM_WIDTH + MIN_PWM_WIDTH) / 2;
+        }
+        break;
+      case 1:
+        if (ch_selected[1]) {
+          ch_value[1] = (MAX_PWM_WIDTH + MIN_PWM_WIDTH) / 2;
+        }
+        break;
+      case 2:
+        if (ch_selected[2]) {
+          ch_value[2] = (MAX_PWM_WIDTH + MIN_PWM_WIDTH) / 2;
+        }
+        break;
+      case 3:
+        if (ch_selected[3]) {
+          ch_value[3] = (MAX_PWM_WIDTH + MIN_PWM_WIDTH) / 2;
+        }
+        break;
+      default:
+        break;
+    }
+    UpdateTimerWidths();
+    updateScreen();
+    lastButtonDebounce = HAL_GetTick();
   }
 }
 
@@ -423,15 +505,16 @@ void GPIO_Config(void) {
   GPIOB->CRL =
       (GPIO_CRL_MODE6 | GPIO_CRL_CNF6_1 | GPIO_CRL_MODE7 | GPIO_CRL_CNF7_1);
   GPIOB->CRH =
-      (GPIO_CRH_MODE8 | GPIO_CRH_CNF8_1 | GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1 |
-       (0b00 << GPIO_CRH_MODE12_Pos) | GPIO_CRH_CNF12_1);
-
+      (GPIO_CRH_MODE8 | GPIO_CRH_CNF8_1 | GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1);
   GPIOA->CRL = (0b00 << GPIO_CRL_MODE0_Pos) | GPIO_CRL_CNF0_1 |
                (0b00 << GPIO_CRL_MODE1_Pos) | GPIO_CRL_CNF1_1 |
+               (0b00 << GPIO_CRL_MODE3_Pos) | GPIO_CRL_CNF3_1 |
                (0b00 << GPIO_CRL_MODE4_Pos) | GPIO_CRL_CNF4_1 |
-               (0b00 << GPIO_CRL_MODE5_Pos) | GPIO_CRL_CNF5_1;
-
-  GPIOA->ODR |= GPIO_ODR_ODR4 | GPIO_ODR_ODR5;
+               (0b00 << GPIO_CRL_MODE5_Pos) | GPIO_CRL_CNF5_1 |
+               (0b00 << GPIO_CRL_MODE6_Pos) | GPIO_CRL_CNF6_1 |
+               (0b00 << GPIO_CRL_MODE7_Pos) | GPIO_CRL_CNF7_1;
+  GPIOA->ODR |= GPIO_ODR_ODR3 | GPIO_ODR_ODR4 | GPIO_ODR_ODR5 | GPIO_ODR_ODR6 |
+                GPIO_ODR_ODR7;
 }
 
 /**
@@ -484,6 +567,8 @@ void Timer4_CEN(bool state) {
 /**
  * @brief Timer Capture/Compare Enable/Disable function
  *
+ * @param channel
+ * @param setValue
  */
 void TimerCapComSet(uint8_t channel, bool setValue) {
   if (channel >= 0 && channel < 4) {
